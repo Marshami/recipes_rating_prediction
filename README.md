@@ -1,3 +1,1 @@
-# recipes_rating_prediction
-
-### example  heading
+# Modeling Recipe Ratings Using Recipe Features: An Exploration of Predictive Factors
