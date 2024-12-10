@@ -653,7 +653,9 @@ print(f"Observed difference in proportions: {observed_diff:.4f}")
 ```
 
 Proportion missing (Submitted before 2010): 0.0011
+
 Proportion missing (Submitted in/after 2010): 0.0004
+
 Observed difference in proportions: 0.0007
 
 **Performing the Permutation Test:**
@@ -1031,15 +1033,23 @@ print(y.isnull().sum())
 ```
 
 Missing values in features:
+
 minutes          0
+
 n_ingredients    0
+
 n_steps          0
+
 calories         0
+
 protein_DV       0
+
 carbs_DV         0
+
 dtype: int64
 
 Missing values in target variable:
+
 0
 
 ```py
@@ -1070,6 +1080,7 @@ print(f"Testing set size: {X_test.shape[0]} samples")
 ```
 
 Training set size: 187542 samples
+
 Testing set size: 46886 samples
 
 ### Step: Create a Pipeline
@@ -1110,7 +1121,9 @@ print(f"R-squared Score: {r2:.4f}")
 ```
 
 Mean Squared Error (MSE): 1.7862
+
 Mean Absolute Error (MAE): 0.8978
+
 R-squared Score: 0.0025
 
 #### Interpretation of Results:
@@ -1273,6 +1286,7 @@ print(f"Testing set size: {X_test.shape[0]} samples")
 ```
 
 Training set size: 187542 samples
+
 Testing set size: 46886 samples
 
 #### Using RandomizedSearchCV for Hyperparameter Tuning
@@ -1362,8 +1376,11 @@ print(f"R-squared Score: {r2:.4f}")
 ```
 
 Final Model Performance with RandomizedSearchCV:
+
 Mean Squared Error (MSE): 1.7737
+
 Mean Absolute Error (MAE): 0.8911
+
 R-squared Score: 0.0095
 
 #### Interpretation of Results:
@@ -1503,7 +1520,9 @@ print(f"Observed Difference in RMSE: {observed_diff_rmse:.4f}")
 ```
 
 Observed RMSE (Easy Recipes): 1.2961
+
 Observed RMSE (Not Easy Recipes): 1.3791
+
 Observed Difference in RMSE: -0.0831
 
 ### Permutation Test
