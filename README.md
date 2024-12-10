@@ -218,20 +218,45 @@ fig = px.bar(
 fig.show(renderer='jupyterlab')
 ```
 
-<iframe 
-    src="assets/graph-1.html" 
-    width="800"
-    height="600"
-    frameborder="0"
-></iframe>
+<iframe src="assets/graph-1.html" width="800" height="600" frameborder="0"></iframe>
 
 **Observation:**
 This bar chart shows the frequency of each rating value (e.g., from 0 to 5).
 We can observe how users rate recipes on average.
 
+```py
+# Filter recipes with preparation time <= 300 minutes
+filtered_minutes = recipes_df[recipes_df['minutes'] <= 300]
+
+# Plot using Plotly Express
+fig = px.histogram(
+    filtered_minutes,
+    x='minutes',
+    nbins=50,
+    title='Distribution of Recipe Preparation Time (<= 300 minutes)',
+    labels={'minutes': 'Minutes', 'count': 'Frequency'}
+)
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-2.html" width="800" height="600" frameborder="0"></iframe>
+
 **Observation:**
 The histogram displays how recipe preparation times are distributed.
 We can see whether most recipes are quick to prepare or take longer.
+
+```py
+# Plot the distribution of number of steps
+fig = recipes_df['n_steps'].plot(
+    kind='hist',
+    bins=30,
+    title='Distribution of Number of Steps in Recipes',
+    labels={'value': 'Number of Steps', 'count': 'Frequency'}
+)
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-3.html" width="800" height="600" frameborder="0"></iframe>
 
 **Observation:**
 This histogram shows the complexity of recipes based on the number of steps.
@@ -241,9 +266,40 @@ It helps us understand whether recipes tend to be simple or complex.
 
 Examine relationships between pairs of variables to identify possible associations.
 
+```py
+# Filter out recipes with preparation time > 300 minutes for clarity
+filtered_data = recipes_df[recipes_df['minutes'] <= 300]
+
+# Create scatter plot
+fig = filtered_data.plot(
+    kind='scatter',
+    x='minutes',
+    y='average_rating',
+    title='Preparation Time vs. Average Rating',
+    labels={'minutes': 'Minutes', 'average_rating': 'Average Rating'}
+)
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-4.html" width="800" height="600" frameborder="0"></iframe>
+
 **Observation:**
 This scatter plot helps identify if there's a correlation between preparation time and average rating.
 We can look for trends, such as whether quicker recipes tend to have higher ratings.
+
+```py
+# Create scatter plot
+fig = recipes_df.plot(
+    kind='scatter',
+    x='n_steps',
+    y='average_rating',
+    title='Number of Steps vs. Average Rating',
+    labels={'n_steps': 'Number of Steps', 'average_rating': 'Average Rating'}
+)
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-5.html" width="800" height="600" frameborder="0"></iframe>
 
 **Observation:**
 This plot examines if the complexity of a recipe (as measured by the number of steps) affects its average rating.
@@ -253,8 +309,62 @@ We can see if simpler recipes are rated higher.
 
 We'll explore aggregate statistics by grouping and pivoting data.
 
+```py
+# Explode the 'tags' column so each tag is in a separate row
+recipes_tags = recipes_df.explode('tags')
+```
+
+```py
+# Group by tags and calculate the average rating
+tag_ratings = recipes_tags.groupby('tags')['average_rating'].mean().reset_index()
+
+# Remove tags with missing average ratings
+tag_ratings = tag_ratings.dropna(subset=['average_rating'])
+
+# Sort tags by average rating
+top_tags = tag_ratings.sort_values(by='average_rating', ascending=False)
+```
+
+```py
+# Display the top 10 tags
+top_10_tags = top_tags.head(10)
+```
+
+```py
+fig = top_10_tags.plot(
+    kind='bar',
+    x='tags',
+    y='average_rating',
+    title='Top 10 Tags by Average Rating',
+    labels={'tags': 'Tag', 'average_rating': 'Average Rating'}
+)
+fig.update_layout(xaxis_tickangle=-45)
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-6.html" width="800" height="600" frameborder="0"></iframe>
+
 **Observation:**
 We can see which tags are associated with higher-rated recipes. This helps identify popular cuisines or recipe categories.
+
+```py
+# Group by 'n_steps' and calculate average calories
+steps_calories = recipes_df.groupby('n_steps')['calories'].mean().reset_index()
+```
+
+```py
+# Plot the relationship
+fig = steps_calories.plot(
+    kind='scatter',
+    x='n_steps',
+    y='calories',
+    title='Average Calories by Number of Steps',
+    labels={'n_steps': 'Number of Steps', 'calories': 'Average Calories'}
+)
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-7.html" width="800" height="600" frameborder="0"></iframe>
 
 **Observation:**
 This plot shows how the average caloric content of recipes varies with the number of steps.
@@ -270,6 +380,15 @@ In this section, we'll explore whether any missing data in our dataset is **Not 
 
 The `description` column in the `recipes_df` dataset has a number of missing values.
 
+```py
+# Check for missing values in 'description'
+missing_descriptions = recipes_df['description'].isnull().sum()
+total_recipes = recipes_df.shape[0]
+print(f"Missing descriptions: {missing_descriptions} out of {total_recipes} recipes")
+```
+
+Missing descriptions: 70 out of 83782 recipes
+
 We need to consider whether the missingness in the description column depends on the missing values themselves.
 
 **Hypothesis:**
@@ -283,6 +402,15 @@ We need to consider whether the missingness in the description column depends on
 • Without additional data or domain knowledge, it's plausible that the missingness in `description` is NMAR because the absence of a description might be related to the content that the contributor chose not to provide.
 
 • For example, if a recipe is extremely simple (e.g., boiling eggs), the contributor might skip the description, thinking it's unnecessary. In this case, the missingness depends on the nature of the recipe itself, which is unobserved in the `description` field.
+
+```py
+# Check for missing values in 'review'
+missing_reviews = interactions_df['review'].isnull().sum()
+total_interactions = interactions_df.shape[0]
+print(f"Missing reviews: {missing_reviews} out of {total_interactions} interactions")
+```
+
+Missing reviews: 169 out of 731927 interactions
 
 **Hypothesis:**
 
@@ -317,6 +445,77 @@ The missingness of `description` depends on the complexity of the recipe, which 
 
 **Permutation Test:**
 We'll perform a permutation test to assess whether the missingness of `description` depends on `n_steps`.
+
+```py
+# Create a missingness indicator for 'description'
+recipes_df['description_missing'] = recipes_df['description'].isnull()
+```
+
+```py
+# Split the data into two groups based on 'description_missing'
+has_description = recipes_df[recipes_df['description_missing'] == False]
+missing_description = recipes_df[recipes_df['description_missing'] == True]
+
+# Compute the mean 'n_steps' for each group
+mean_n_steps_has_desc = has_description['n_steps'].mean()
+mean_n_steps_missing_desc = missing_description['n_steps'].mean()
+
+# Compute the observed difference in means
+observed_diff = mean_n_steps_has_desc - mean_n_steps_missing_desc
+print(f"Observed difference in mean n_steps: {observed_diff}")
+```
+
+Observed difference in mean n_steps: -0.9953913417431188
+
+```py
+def permutation_test(data, column, group_column, num_simulations=1000):
+    observed = data.groupby(group_column)[column].mean()
+    observed_diff = observed[False] - observed[True]  # False: has description, True: missing description
+
+    diffs = []
+    for _ in range(num_simulations):
+        shuffled = data[column].sample(frac=1, replace=False).reset_index(drop=True)
+        shuffled_data = data.copy()
+        shuffled_data[column] = shuffled
+        shuffled_means = shuffled_data.groupby(group_column)[column].mean()
+        diff = shuffled_means[False] - shuffled_means[True]
+        diffs.append(diff)
+
+    p_value = np.mean(np.abs(diffs) >= np.abs(observed_diff))
+    return observed_diff, diffs, p_value
+```
+
+```py
+# Perform the permutation test
+observed_diff, diffs, p_value = permutation_test(
+    data=recipes_df,
+    column='n_steps',
+    group_column='description_missing',
+    num_simulations=1000
+)
+
+print(f"P-value: {p_value}")
+```
+
+P-value: 0.208
+
+```py
+# Plot the distribution of permuted differences
+fig = px.histogram(
+    diffs,
+    nbins=50,
+    title='Permutation Test: Difference in Mean n_steps by Description Missingness',
+    labels={'value': 'Difference in Mean n_steps'}
+)
+
+# Add a vertical line for the observed difference
+fig.add_vline(x=observed_diff, line_color='red', line_dash='dash', annotation_text='Observed Difference')
+
+# Show the plot
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-8.html" width="800" height="600" frameborder="0"></iframe>
 
 **Interpretation:**
 
@@ -370,7 +569,50 @@ We'll perform a permutation test to assess whether the missingness of `descripti
 
 **Data Preparation:**
 
+```py
+# Create an indicator for missing 'description'
+recipes_df['description_missing'] = recipes_df['description'].isna()
+```
+
+```py
+# Ensure 'submitted' is in datetime format
+recipes_df['submitted'] = pd.to_datetime(recipes_df['submitted'])
+
+# Extract the year from 'submitted' date
+recipes_df['submitted_year'] = recipes_df['submitted'].dt.year
+```
+
 **Visualize Missingness Over Time:**
+
+```py
+# Assuming recipes_df is already loaded and 'submitted' is in datetime format
+
+# Create an indicator for missing 'description'
+recipes_df['description_missing'] = recipes_df['description'].isna()
+
+# Extract the year from 'submitted' date
+recipes_df['submitted_year'] = recipes_df['submitted'].dt.year
+
+# Calculate the proportion of missing descriptions per year
+missing_by_year = recipes_df.groupby('submitted_year')['description_missing'].mean()
+
+# Reset the index to make 'submitted_year' a column
+missing_by_year = missing_by_year.reset_index()
+
+# Plot using the .plot() method
+fig = missing_by_year.plot(
+    kind='bar',
+    x='submitted_year',
+    y='description_missing',
+    title='Proportion of Missing Descriptions by Submission Year',
+    labels={'submitted_year': 'Submission Year', 'description_missing': 'Proportion Missing'}
+)
+
+# Show the plot
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-9.html" width="800" height="600" frameborder="0"></iframe>
 
 **Interpretation:**
 
@@ -384,9 +626,103 @@ To perform a statistical test, we'll divide the data into two groups:
 
 • Group B: Recipes submitted in or after that year.
 
+```py
+# Choose a cutoff year (e.g., 2010)
+cutoff_year = 2010
+
+# Create a binary variable
+recipes_df['submitted_before_2010'] = recipes_df['submitted_year'] < cutoff_year
+```
+
 **Calculating the Observed Difference:**
 
+```py
+# Group by 'submitted_before_2010' and calculate the mean of 'description_missing'
+grouped = recipes_df.groupby('submitted_before_2010')['description_missing'].mean()
+
+# Extract proportions
+prop_before = grouped[True]
+prop_after = grouped[False]
+
+# Calculate the observed difference
+observed_diff = prop_before - prop_after
+
+print(f"Proportion missing (Submitted before 2010): {prop_before:.4f}")
+print(f"Proportion missing (Submitted in/after 2010): {prop_after:.4f}")
+print(f"Observed difference in proportions: {observed_diff:.4f}")
+```
+
+Proportion missing (Submitted before 2010): 0.0011
+Proportion missing (Submitted in/after 2010): 0.0004
+Observed difference in proportions: 0.0007
+
 **Performing the Permutation Test:**
+
+```py
+# Number of permutations
+num_permutations = 1000
+
+# Array to store permutation differences
+perm_diffs = np.zeros(num_permutations)
+
+# Extract arrays
+description_missing = recipes_df['description_missing'].values
+submitted_before_2010 = recipes_df['submitted_before_2010'].values
+```
+
+```py
+for i in range(num_permutations):
+    # Shuffle the 'submitted_before_2010' labels
+    shuffled_labels = np.random.permutation(submitted_before_2010)
+    
+    # Create a DataFrame with shuffled labels
+    shuffled_df = pd.DataFrame({
+        'description_missing': description_missing,
+        'shuffled_submitted_before_2010': shuffled_labels
+    })
+    
+    # Calculate the proportion of missing descriptions for each group
+    shuffled_grouped = shuffled_df.groupby('shuffled_submitted_before_2010')['description_missing'].mean()
+    
+    # Calculate the difference in proportions
+    perm_diff = shuffled_grouped[True] - shuffled_grouped[False]
+    
+    # Store the permutation difference
+    perm_diffs[i] = perm_diff
+```
+
+```py
+# Calculate the p-value
+p_value = np.mean(np.abs(perm_diffs) >= np.abs(observed_diff))
+
+print(f"P-value: {p_value:.4f}")
+```
+
+P-value: 0.0000
+
+```py
+# Plot the distribution of permuted differences
+fig = px.histogram(
+    perm_diffs,
+    nbins=50,
+    title='Permutation Test: Difference in Proportion of Missing Descriptions by Submission Date',
+    labels={'value': 'Difference in Proportions'}
+)
+
+# Add a vertical line for the observed difference
+fig.add_vline(
+    x=observed_diff,
+    line_color='red',
+    line_dash='dash',
+    annotation_text='Observed Difference',
+    annotation_position='top left'
+)
+
+# Show the plot
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-10.html" width="800" height="600" frameborder="0"></iframe>
 
 **Interpretation of Results:**
 
@@ -436,9 +772,37 @@ In this step, we will perform a hypothesis test to determine whether there is a 
 
 Ensure that we have a dataset that includes both recipe information and user ratings.
 
+```py
+# Merge datasets on 'recipe_id'
+merged_df = pd.merge(interactions_df, recipes_df, on='recipe_id', how='inner')
+```
+
+```py
+# Select necessary columns and drop rows with missing values
+analysis_df = merged_df[['recipe_id', 'minutes', 'rating']].dropna()
+```
+
+```py
+# Categorize recipes based on preparation time
+analysis_df['time_category'] = np.where(analysis_df['minutes'] <= 30, 'short', 'long')
+```
+
 ### Step: Calculate Observed Test Statistic
 
 Compute the mean ratings for each group and calculate the observed difference.
+
+```py
+# Calculate mean ratings for each group
+group_means = analysis_df.groupby('time_category')['rating'].mean()
+mean_short = group_means['short']
+mean_long = group_means['long']
+
+# Calculate observed test statistic
+observed_diff = mean_short - mean_long
+print(f"Observed Difference in Mean Ratings: {observed_diff}")
+```
+
+Observed Difference in Mean Ratings: 0.12769331475557077
 
 #### Permutation Test:
 
@@ -458,9 +822,73 @@ Perform a permutation test to assess whether the observed difference is statisti
 
 **Implementation:**
 
+```py
+# Number of permutations
+num_permutations = 1000
+
+# Store permuted differences
+perm_diffs = []
+
+# Perform permutations
+for _ in range(num_permutations):
+    # Shuffle the 'time_category' labels
+    shuffled_labels = analysis_df['time_category'].sample(frac=1, replace=False).reset_index(drop=True)
+    
+    # Assign shuffled labels
+    shuffled_df = analysis_df.copy()
+    shuffled_df['shuffled_category'] = shuffled_labels
+    
+    # Calculate mean ratings for shuffled groups
+    shuffled_means = shuffled_df.groupby('shuffled_category')['rating'].mean()
+    perm_diff = shuffled_means['short'] - shuffled_means['long']
+    perm_diffs.append(perm_diff)
+
+# Convert list to numpy array
+perm_diffs = np.array(perm_diffs)
+
+# Calculate p-value
+p_value = np.mean(np.abs(perm_diffs) >= np.abs(observed_diff))
+print(f"P-value: {p_value}")
+```
+
+P-value: 0.0
+
 **Visualization:** Plot the distribution of permuted differences and indicate the observed difference.
 
+```py
+# Create a histogram of permuted differences
+fig = px.histogram(
+    perm_diffs,
+    nbins=50,
+    title='Permutation Test: Distribution of Difference in Mean Ratings',
+    labels={'value': 'Difference in Mean Ratings'}
+)
+
+# Add a vertical line for the observed difference
+fig.add_vline(
+    x=observed_diff,
+    line_color='red',
+    line_dash='dash',
+    annotation_text='Observed Difference',
+    annotation_position='top left'
+)
+
+# Show the plot
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-11.html" width="800" height="600" frameborder="0"></iframe>
+
 **Conclusion:**
+
+```py
+if p_value < 0.05:
+    print("Based on the p-value calculated from the permutation test: We reject the null hypothesis at the 5% significance level.")
+else:
+    print("Based on the p-value calculated from the permutation test: We fail to reject the null hypothesis at the 5% significance level.")
+```
+
+Based on the p-value calculated from the permutation test: We reject the null hypothesis at the 5% significance level.
 
 This suggests that there is a **statistically significant difference** in the average ratings between recipes that take **30 minutes or less** and those that take **more than 30 minutes** to prepare.
 
@@ -529,9 +957,47 @@ In this step, we'll train a baseline regression model to predict the average rat
 
 First, we'll import the required libraries.
 
+```py
+# Import scikit-learn libraries
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+```
+
 ### Step: Data Preparation
 
 Assuming that the datasets `recipes_df` and `interactions_df` have been loaded and preprocessed as per previous steps.
+
+```py
+# Load the datasets (if not already loaded)
+# recipes_df = pd.read_csv('RAW_recipes.csv')
+# interactions_df = pd.read_csv('RAW_interactions.csv')
+
+# Ensure 'submitted' and 'date' columns are datetime
+recipes_df['submitted'] = pd.to_datetime(recipes_df['submitted'])
+interactions_df['date'] = pd.to_datetime(interactions_df['date'])
+
+# Merge datasets on 'recipe_id' to include average ratings
+# Calculate the average rating per recipe
+average_ratings = interactions_df.groupby('recipe_id')['rating'].mean().reset_index()
+average_ratings = average_ratings.rename(columns={'rating': 'average_rating'})
+
+# Merge average ratings with recipes_df
+recipes_with_ratings = pd.merge(recipes_df, average_ratings, left_on='recipe_id', right_on='recipe_id', how='inner')
+
+# Display the first few rows
+recipes_with_ratings.head()
+```
+
+| name                                 |   recipe_id |   minutes |   contributor_id | submitted           | tags                                                                                                                                                                                                                                                                                               |   n_steps | steps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | description                                                                                                                                                                                                                                                                                                                                                                       | ingredients                                                                                                                                                                                                                             |   n_ingredients |   calories |   total_fat_DV |   sugar_DV |   sodium_DV |   protein_DV |   saturated_fat_DV |   carbs_DV |   average_rating_x | description_missing   |   submitted_year | submitted_before_2010   |   average_rating_y |
+|:-------------------------------------|------------:|----------:|-----------------:|:--------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------:|-----------:|---------------:|-----------:|------------:|-------------:|-------------------:|-----------:|-------------------:|:----------------------|-----------------:|:------------------------|-------------------:|
+| 1 brownies in the world    best ever |      333281 |        40 |           985201 | 2008-10-27 00:00:00 | ['60-minutes-or-less', 'time-to-make', 'course', 'main-ingredient', 'preparation', 'for-large-groups', 'desserts', 'lunch', 'snacks', 'cookies-and-brownies', 'chocolate', 'bar-cookies', 'brownies', 'number-of-servings']                                                                        |        10 | ['heat the oven to 350f and arrange the rack in the middle', 'line an 8-by-8-inch glass baking dish with aluminum foil', 'combine chocolate and butter in a medium saucepan and cook over medium-low heat', 'stirring frequently', 'until evenly melted', 'remove from heat and let cool to room temperature', 'combine eggs', 'sugar', 'cocoa powder', 'vanilla extract', 'espresso', 'and salt in a large bowl and briefly stir until just evenly incorporated', 'add cooled chocolate and mix until uniform in color', 'add flour and stir until just incorporated', 'transfer batter to the prepared baking dish', 'bake until a tester inserted in the center of the brownies comes out clean', 'about 25 to 30 minutes', 'remove from the oven and cool completely before cutting']                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | these are the most; chocolatey, moist, rich, dense, fudgy, delicious brownies that you'll ever make.....sereiously! there's no doubt that these will be your fav brownies ever for you can add things to them or make them plain.....either way they're pure heaven!                                                                                                              | ['bittersweet chocolate', 'unsalted butter', 'eggs', 'granulated sugar', 'unsweetened cocoa powder', 'vanilla extract', 'brewed espresso', 'kosher salt', 'all-purpose flour']                                                          |               9 |      138.4 |             10 |         50 |           3 |            3 |                 19 |          6 |                  4 | False                 |             2008 | True                    |                  4 |
+| 1 in canada chocolate chip cookies   |      453467 |        45 |          1848091 | 2011-04-11 00:00:00 | ['60-minutes-or-less', 'time-to-make', 'cuisine', 'preparation', 'north-american', 'for-large-groups', 'canadian', 'british-columbian', 'number-of-servings']                                                                                                                                      |        12 | ['pre-heat oven the 350 degrees f', 'in a mixing bowl', 'sift together the flours and baking powder', 'set aside', 'in another mixing bowl', 'blend together the sugars', 'margarine', 'and salt until light and fluffy', 'add the eggs', 'water', 'and vanilla to the margarine / sugar mixture and mix together until well combined', 'add in the flour mixture to the wet ingredients and blend until combined', 'scrape down the sides of the bowl and add the chocolate chips', 'mix until combined', 'scrape down the sides to the bowl again', 'using an ice cream scoop', 'scoop evenly rounded balls of dough and place of cookie sheet about 1 - 2 inches apart to allow for spreading during baking', 'bake for 10 - 15 minutes or until golden brown on the outside and soft & chewy in the center', 'serve hot and enjoy !']                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | this is the recipe that we use at my school cafeteria for chocolate chip cookies. they must be the best chocolate chip cookies i have ever had! if you don't have margarine or don't like it, then just use butter (softened) instead.                                                                                                                                            | ['white sugar', 'brown sugar', 'salt', 'margarine', 'eggs', 'vanilla', 'water', 'all-purpose flour', 'whole wheat flour', 'baking soda', 'chocolate chips']                                                                             |              11 |      595.1 |             46 |        211 |          22 |           13 |                 51 |         26 |                  5 | False                 |             2011 | False                   |                  5 |
+| 412 broccoli casserole               |      306168 |        40 |            50969 | 2008-05-30 00:00:00 | ['60-minutes-or-less', 'time-to-make', 'course', 'main-ingredient', 'preparation', 'side-dishes', 'vegetables', 'easy', 'beginner-cook', 'broccoli']                                                                                                                                               |         6 | ['preheat oven to 350 degrees', 'spray a 2 quart baking dish with cooking spray', 'set aside', 'in a large bowl mix together broccoli', 'soup', 'one cup of cheese', 'garlic powder', 'pepper', 'salt', 'milk', '1 cup of french onions', 'and soy sauce', 'pour into baking dish', 'sprinkle remaining cheese over top', 'bake for 25 minutes or until cheese is lightly browned', 'sprinkle with rest of french fried onions and bake until onions are browned and cheese is bubbly', 'about 10 more minutes']                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | since there are already 411 recipes for broccoli casserole posted to "zaar" ,i decided to call this one  #412 broccoli casserole.i don't think there are any like this one in the database. i based this one on the famous "green bean casserole" from campbell's soup. but i think mine is better since i don't like cream of mushroom soup.submitted to "zaar" on may 28th,2008 | ['frozen broccoli cuts', 'cream of chicken soup', 'sharp cheddar cheese', 'garlic powder', 'ground black pepper', 'salt', 'milk', 'soy sauce', 'french-fried onions']                                                                   |               9 |      194.8 |             20 |          6 |          32 |           22 |                 36 |          3 |                  5 | False                 |             2008 | True                    |                  5 |
+| millionaire pound cake               |      286009 |       120 |           461724 | 2008-02-12 00:00:00 | ['time-to-make', 'course', 'cuisine', 'preparation', 'occasion', 'north-american', 'desserts', 'american', 'southern-united-states', 'dinner-party', 'holiday-event', 'cakes', 'dietary', 'christmas', 'thanksgiving', 'low-sodium', 'low-in-something', 'taste-mood', 'sweet', '4-hours-or-less'] |         7 | ['freheat the oven to 300 degrees', 'grease a 10-inch tube pan with butter', 'dust the bottom and sides with flour', 'and set aside', 'in a large mixing bowl', 'cream the butter and sugar with an electric mixer and add the eggs one at a time', 'beating after each addition', 'alternately add the flour and milk', 'stirring till the batter is smooth', 'add the two extracts and stir till well blended', 'scrape the batter into the prepared pan and bake till a cake tester or knife blade inserted in the center comes out clean', 'about 1 1 / 2 hours', 'cool the cake in the pan on a rack for 5 minutes', 'then turn it out on the rack to cool completely']                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | why a millionaire pound cake?  because it's super rich!  this scrumptious cake is the pride of an elderly belle from jackson, mississippi.  the recipe comes from "the glory of southern cooking" by james villas.                                                                                                                                                                | ['butter', 'sugar', 'eggs', 'all-purpose flour', 'whole milk', 'pure vanilla extract', 'almond extract']                                                                                                                                |               7 |      878.3 |             63 |        326 |          13 |           20 |                123 |         39 |                  5 | False                 |             2008 | True                    |                  5 |
+| 2000 meatloaf                        |      475785 |        90 |          2202916 | 2012-03-06 00:00:00 | ['time-to-make', 'course', 'main-ingredient', 'preparation', 'main-dish', 'potatoes', 'vegetables', '4-hours-or-less', 'meatloaf', 'simply-potatoes2']                                                                                                                                             |        17 | ['pan fry bacon', 'and set aside on a paper towel to absorb excess grease', 'mince yellow onion', 'red bell pepper', 'and add to your mixing bowl', 'chop garlic and set aside', 'put 1tbsp olive oil into a saut pan', 'along with chopped garlic', 'teaspoons white pepper and a pinch of kosher salt', 'bring to a medium heat to sweat your garlic', 'preheat oven to 350f', 'coarsely chop your baby spinach add to your heated pan', 'stir frequently for approximately 5 min to wilt', 'add your spinach to the mixing bowl', 'chop your now cooled bacon', 'and add it to the mixing bowl', 'add your meatloaf mix to the bowl', 'with one egg and mix till thoroughly combined', 'add your goat cheese', 'one egg', '1 / 8 tsp white pepper and 1 / 8 tsp of kosher salt and mix till thoroughly combined', 'transfer to a 9x5 meatloaf pan', 'and cook for 60 min or until the internal temperature is at least 160f', 'let stand for 5min', 'melt 1tbsp unsalted butter into a frying pan', 'and cook up to three eggs at a time', 'crack each egg into a separate dish', 'in order to prevent egg shells from reaching the pan', 'then add salt and pepper to taste', 'wait until the egg whites are firm looking', 'but slightly runny on top before flipping your eggs', 'after flipping', 'wait 10~20 seconds before removing each egg and placing it over your slices of meatloaf'] | ready, set, cook! special edition contest entry: a mediterranean flavor inspired meatloaf dish. featuring: simply potatoes - shredded hash browns, egg, bacon, spinach, red bell pepper, and goat cheese.                                                                                                                                                                         | ['meatloaf mixture', 'unsmoked bacon', 'goat cheese', 'unsalted butter', 'eggs', 'baby spinach', 'yellow onion', 'red bell pepper', 'simply potatoes shredded hash browns', 'fresh garlic', 'kosher salt', 'white pepper', 'olive oil'] |              13 |      267   |             30 |         12 |          12 |           29 |                 48 |          2 |                  5 | False                 |             2012 | False                   |                  5 |
 
 ### Step: Feature Selection
 
@@ -545,9 +1011,40 @@ Our target variable will be `average_rating`.
 
 Prepare the features (`X`) and the target variable (`y`), and check for missing values.
 
+```py
+# Merge interactions with recipes to get features and ratings
+data = pd.merge(interactions_df, recipes_df, on='recipe_id', how='inner')
+```
+
 ### Step: Split Data into Training and Testing Sets
 
 Split the data into training and testing sets to evaluate the model's ability to generalize to unseen data.
+
+```py
+# Select additional features
+X = data[['minutes', 'n_ingredients', 'n_steps', 'calories', 'protein_DV', 'carbs_DV']]
+y = data['rating']
+
+# Check for missing values in features
+print("Missing values in features:")
+print(X.isnull().sum())
+
+# Check for missing values in target variable
+print("\nMissing values in target variable:")
+print(y.isnull().sum())
+```
+
+Missing values in features:
+minutes          0
+n_ingredients    0
+n_steps          0
+calories         0
+protein_DV       0
+carbs_DV         0
+dtype: int64
+
+Missing values in target variable:
+0
 
 ### Step: Create a Pipeline
 
