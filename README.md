@@ -218,9 +218,12 @@ fig = px.bar(
 fig.show(renderer='jupyterlab')
 ```
 
-```html
-<iframe src="graph-1.html" width="800" height="600" frameborder="0"></iframe>
-```
+<iframe 
+    src="assets/graph-1.html" 
+    width="800"
+    height="600"
+    frameborder="0"
+></iframe>
 
 **Observation:**
 This bar chart shows the frequency of each rating value (e.g., from 0 to 5).
