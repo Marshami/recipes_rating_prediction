@@ -1016,10 +1016,6 @@ Prepare the features (`X`) and the target variable (`y`), and check for missing 
 data = pd.merge(interactions_df, recipes_df, on='recipe_id', how='inner')
 ```
 
-### Step: Split Data into Training and Testing Sets
-
-Split the data into training and testing sets to evaluate the model's ability to generalize to unseen data.
-
 ```py
 # Select additional features
 X = data[['minutes', 'n_ingredients', 'n_steps', 'calories', 'protein_DV', 'carbs_DV']]
@@ -1046,15 +1042,76 @@ dtype: int64
 Missing values in target variable:
 0
 
+```py
+# First, ensure 'tags' is properly parsed into lists
+# Explode the 'tags' column
+data_exploded = data.explode('tags')
+
+# Create dummy variables for tags
+tags_dummies = pd.get_dummies(data_exploded['tags'])
+
+# Aggregate dummy variables by 'recipe_id' and 'user_id'
+tags_dummies_grouped = tags_dummies.groupby([data_exploded['recipe_id'], data_exploded['user_id']]).max().reset_index()
+
+# Merge back with the main data
+data = pd.merge(data, tags_dummies_grouped, on=['recipe_id', 'user_id'], how='left')
+```
+
+### Step: Split Data into Training and Testing Sets
+
+Split the data into training and testing sets to evaluate the model's ability to generalize to unseen data.
+
+```py
+# Split the data (80% training, 20% testing)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+print(f"Training set size: {X_train.shape[0]} samples")
+print(f"Testing set size: {X_test.shape[0]} samples")
+```
+
+Training set size: 187542 samples
+Testing set size: 46886 samples
+
 ### Step: Create a Pipeline
 
 Create a scikit-learn Pipeline that includes data preprocessing (scaling) and model training.
 
+```py
+# Define the pipeline
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),         # Scale numerical features
+    ('regressor', LinearRegression())     # Linear Regression model
+])
+```
+
 ### Step: Train the Baseline Model
+
+```py
+# Fit the model on the training data
+pipeline.fit(X_train, y_train)
+```
 
 ### Step: Evaluate the Model
 
 Evaluate the model's performance on the test set.
+
+```py
+# Predict on the test set
+y_pred = pipeline.predict(X_test)
+
+# Calculate evaluation metrics
+mse = mean_squared_error(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Mean Squared Error (MSE): {mse:.4f}")
+print(f"Mean Absolute Error (MAE): {mae:.4f}")
+print(f"R-squared Score: {r2:.4f}")
+```
+
+Mean Squared Error (MSE): 1.7862
+Mean Absolute Error (MAE): 0.8978
+R-squared Score: 0.0025
 
 #### Interpretation of Results:
 
@@ -1132,19 +1189,61 @@ We will engineer at least two new features:
 
 We will continue to predict individual `ratings` from `interactions_df`, merged with recipe features from `recipes_df`.
 
+```py
+# Merge interactions with recipes to get features and ratings
+data = pd.merge(interactions_df, recipes_df, on='recipe_id', how='inner')
+```
+
+```py
+# Drop rows with missing values in relevant columns
+data = data.dropna(subset=['minutes', 'n_ingredients', 'n_steps', 'tags', 'rating'])
+```
+
+```py
+# Calculate minutes_per_step
+data['minutes_per_step'] = data['minutes'] / data['n_steps']
+
+# Calculate ingredients_per_step
+data['ingredients_per_step'] = data['n_ingredients'] / data['n_steps']
+```
+
 #### Handle Infinite or NaN Values:
 
 • Recipes with `n_steps` equal to zero will result in division by zero.
 
 • Replace infinite values with zero or appropriate value.
 
+```py
+# Replace infinite values with NaN
+data.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+# Drop rows with NaN values resulting from division
+data = data.dropna(subset=['minutes_per_step', 'ingredients_per_step'])
+```
+
 ### Encoding Categorical Variables
+
+Assuming 'tags' is already a list of tags per recipe
 
 #### Select Most Frequent Tags
 
 • Select the top 20 most frequent tags to reduce dimensionality.
 
+```py
+# Explode the 'tags' column
+data_exploded = data.explode('tags')
+
+# Get the most frequent tags
+top_tags = data_exploded['tags'].value_counts().head(20).index.tolist()
+```
+
 #### Create Dummy Variables for Top Tags
+
+```py
+# Create a binary feature for each top tag
+for tag in top_tags:
+    data[f'tag_{tag}'] = data['tags'].apply(lambda x: int(tag in x))
+```
 
 #### Feature Selection
 
@@ -1160,13 +1259,51 @@ The target variable (`y`) is the individual `rating`.
 
 We will use the same train-test split as in the baseline model for consistency.
 
+```py
+# Select features and target variable
+feature_columns = ['minutes', 'n_ingredients', 'n_steps', 'minutes_per_step', 'ingredients_per_step'] + [f'tag_{tag}' for tag in top_tags]
+X = data[feature_columns]
+y = data['rating']
+
+# Split the data (80% training, 20% testing)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+print(f"Training set size: {X_train.shape[0]} samples")
+print(f"Testing set size: {X_test.shape[0]} samples")
+```
+
+Training set size: 187542 samples
+Testing set size: 46886 samples
+
 #### Using RandomizedSearchCV for Hyperparameter Tuning
 
 **RandomizedSearchCV** is a method provided by scikit-learn that allows you to perform hyperparameter tuning by sampling a fixed number of parameter settings from specified distributions. Instead of exhaustively trying all possible combinations (as in Grid Search), Randomized Search evaluates a random selection of combinations, which can significantly reduce computation time while still exploring a wide range of hyperparameters.
 
+```py
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from scipy.stats import randint
+
+# Define the pipeline
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('regressor', RandomForestRegressor(random_state=42))
+])
+```
+
 #### Define the Hyperparameter Distributions
 
 Define distributions from which parameter values will be sampled.
+
+```py
+# Define hyperparameter distributions
+param_distributions = {
+    # 'regressor__n_estimators': randint(50, 200),
+    'regressor__n_estimators': [50, 100],  # Fixed options instead of a range
+    'regressor__max_depth': [None, 10],
+    'regressor__min_samples_leaf': [1, 2]
+}
+```
 
 #### Set Up RandomizedSearchCV
 
@@ -1175,6 +1312,59 @@ Define distributions from which parameter values will be sampled.
 • `n_iter`: The number of parameter settings that are sampled. You can adjust this number based on available resources.
 
 • `random_state`: Ensures reproducibility of results.
+
+```py
+# Randomized search
+random_search = RandomizedSearchCV(
+    estimator=pipeline,
+    param_distributions=param_distributions,
+    n_iter=5,
+    cv=3,
+    n_jobs=-1,
+    scoring='neg_mean_squared_error',
+    random_state=42,
+    verbose=2
+)
+
+# Sample 20% of the training data
+X_train_sample = X_train.sample(frac=0.2, random_state=42)
+y_train_sample = y_train.loc[X_train_sample.index]
+
+# Use the sampled data for hyperparameter tuning
+random_search.fit(X_train_sample, y_train_sample)
+```
+
+Fitting 3 folds for each of 5 candidates, totalling 15 fits
+
+```py
+# Best hyperparameters
+print("Best Hyperparameters:")
+print(random_search.best_params_)
+```
+
+Best Hyperparameters:
+{'regressor__n_estimators': 100, 'regressor__min_samples_leaf': 2, 'regressor__max_depth': 10}
+
+```py
+# Evaluate on test set
+best_model = random_search.best_estimator_
+y_pred = best_model.predict(X_test)
+
+# Evaluation metrics
+mse = mean_squared_error(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Final Model Performance with RandomizedSearchCV:")
+print(f"Mean Squared Error (MSE): {mse:.4f}")
+print(f"Mean Absolute Error (MAE): {mae:.4f}")
+print(f"R-squared Score: {r2:.4f}")
+```
+
+Final Model Performance with RandomizedSearchCV:
+Mean Squared Error (MSE): 1.7737
+Mean Absolute Error (MAE): 0.8911
+R-squared Score: 0.0095
 
 #### Interpretation of Results:
 
@@ -1265,11 +1455,56 @@ Since our model is a **regression model** predicting user ratings, we will use t
 
 We will use the **test set** from our final model to evaluate performance on unseen data.
 
+```py
+# Ensure that the 'tag_easy' feature is included in the test set
+if 'tag_easy' not in X_test.columns:
+    X_test['tag_easy'] = X_test['tags'].apply(lambda x: int('easy' in x))
+```
+
 #### Identify the Two Groups
+
+```py
+# Create a boolean mask for the two groups
+easy_mask = X_test['tag_easy'] == 1
+not_easy_mask = X_test['tag_easy'] == 0
+
+# Separate the test data into the two groups
+X_test_easy = X_test[easy_mask]
+y_test_easy = y_test[easy_mask]
+X_test_not_easy = X_test[not_easy_mask]
+y_test_not_easy = y_test[not_easy_mask]
+```
 
 #### Make Predictions for Each Group
 
+```py
+# Predict for "easy" recipes
+y_pred_easy = best_model.predict(X_test_easy)
+
+# Predict for "not easy" recipes
+y_pred_not_easy = best_model.predict(X_test_not_easy)
+```
+
 #### Calculate the Observed RMSE for Each Group
+
+```py
+from sklearn.metrics import mean_squared_error
+import numpy as np
+
+# Calculate RMSE for each group
+rmse_easy = np.sqrt(mean_squared_error(y_test_easy, y_pred_easy))
+rmse_not_easy = np.sqrt(mean_squared_error(y_test_not_easy, y_pred_not_easy))
+
+# Calculate the observed difference in RMSE
+observed_diff_rmse = rmse_easy - rmse_not_easy
+print(f"Observed RMSE (Easy Recipes): {rmse_easy:.4f}")
+print(f"Observed RMSE (Not Easy Recipes): {rmse_not_easy:.4f}")
+print(f"Observed Difference in RMSE: {observed_diff_rmse:.4f}")
+```
+
+Observed RMSE (Easy Recipes): 1.2961
+Observed RMSE (Not Easy Recipes): 1.3791
+Observed Difference in RMSE: -0.0831
 
 ### Permutation Test
 
@@ -1277,11 +1512,90 @@ We will use the **test set** from our final model to evaluate performance on uns
 
 First, we need to compute the residuals (errors) for all test samples.
 
+```py
+# Combine all test predictions and true values
+y_test_all = pd.concat([y_test_easy, y_test_not_easy])
+y_pred_all = np.concatenate([y_pred_easy, y_pred_not_easy])
+
+# Calculate residuals
+residuals = y_test_all - y_pred_all
+
+# Create a DataFrame with residuals and group labels
+residuals_df = pd.DataFrame({
+    'residuals': residuals,
+    'group': ['easy'] * len(y_test_easy) + ['not_easy'] * len(y_test_not_easy)
+})
+```
+
 #### Permutation Procedure
+
+```py
+# Number of permutations
+num_permutations = 1000
+
+# Store permuted differences
+perm_diffs = []
+
+# Observed group sizes
+n_easy = len(y_test_easy)
+n_not_easy = len(y_test_not_easy)
+
+for _ in range(num_permutations):
+    # Shuffle the group labels
+    shuffled_labels = residuals_df['group'].sample(frac=1, replace=False).reset_index(drop=True)
+    
+    # Assign shuffled labels
+    residuals_df['shuffled_group'] = shuffled_labels
+    
+    # Calculate RMSE for each permuted group
+    rmse_easy_perm = np.sqrt(np.mean(residuals_df[residuals_df['shuffled_group'] == 'easy']['residuals'] ** 2))
+    rmse_not_easy_perm = np.sqrt(np.mean(residuals_df[residuals_df['shuffled_group'] == 'not_easy']['residuals'] ** 2))
+    
+    # Calculate the difference in RMSE
+    perm_diff = rmse_easy_perm - rmse_not_easy_perm
+    perm_diffs.append(perm_diff)
+```
 
 #### Calculate the P-value
 
+```py
+# Convert permuted differences to a numpy array
+perm_diffs = np.array(perm_diffs)
+
+# Calculate the p-value
+p_value = np.mean(np.abs(perm_diffs) >= np.abs(observed_diff_rmse))
+print(f"P-value: {p_value:.4f}")
+```
+
+P-value: 0.0200
+
 #### Visualization
+
+```py
+import plotly.express as px
+
+# Create a histogram of permuted differences
+fig = px.histogram(
+    perm_diffs,
+    nbins=50,
+    title='Permutation Test: Distribution of Difference in RMSE',
+    labels={'value': 'Difference in RMSE'}
+)
+
+# Add a vertical line for the observed difference
+fig.add_vline(
+    x=observed_diff_rmse,
+    line_color='red',
+    line_dash='dash',
+    annotation_text='Observed Difference',
+    annotation_position='top left'
+)
+
+# Show the plot
+fig.show(renderer='jupyterlab')
+```
+
+<iframe src="assets/graph-12.html" width="800" height="600" frameborder="0"></iframe>
 
 ### Interpretation of the Results:
 
